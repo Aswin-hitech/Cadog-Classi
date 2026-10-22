@@ -1,0 +1,25 @@
+{
+  "dataset": "aleemaparakatta/cats-and-dogs-mini-dataset",
+  "image_size": [
+    160,
+    160
+  ],
+  "batch_size": 32,
+  "epochs_configured": 30,
+  "epochs_completed": 6,
+  "learning_rate": 0.001,
+  "optimizer": "Adam",
+  "loss": "binary_crossentropy",
+  "convolutional_layers": 3,
+  "filters": [
+    32,
+    64,
+    128
+  ],
+  "dropout": 0.4,
+  "random_seed": 42,
+  "classes": [
+    "cats_set",
+    "dogs_set"
+  ]
+}
