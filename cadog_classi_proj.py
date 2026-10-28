@@ -27,7 +27,16 @@ import kagglehub
 
 from tensorflow import keras
 from tensorflow.keras import layers
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    balanced_accuracy_score,
+    matthews_corrcoef,
+)
 
 # ---------------- CONFIGURATION ---------------- #
 
@@ -335,6 +344,45 @@ plt.savefig(OUTPUT_DIR / "confusion_matrix.png", dpi=160)
 plt.close()
 
 
+def compute_additional_metrics(true_labels, predicted_labels, predicted_probs):
+    tn, fp, fn, tp = confusion_matrix(
+        true_labels, predicted_labels, labels=[0, 1]
+    ).ravel()
+
+    total = tp + tn + fp + fn
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    specificity = tn / (tn + fp) if (tn + fp) else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+    false_positive_rate = fp / (fp + tn) if (fp + tn) else 0.0
+    false_negative_rate = fn / (fn + tp) if (fn + tp) else 0.0
+    balanced_acc = (recall + specificity) / 2.0
+
+    mcc_denominator = np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+    mcc = (tp * tn - fp * fn) / mcc_denominator if mcc_denominator else 0.0
+
+    corr = np.corrcoef(true_labels.astype(float), predicted_probs)[0, 1]
+    if np.isnan(corr):
+        corr = 0.0
+
+    return {
+        "accuracy": (tp + tn) / total if total else 0.0,
+        "precision": float(precision),
+        "recall": float(recall),
+        "sensitivity": float(recall),
+        "specificity": float(specificity),
+        "f1_score": float(f1),
+        "balanced_accuracy": float(balanced_acc),
+        "false_positive_rate": float(false_positive_rate),
+        "false_negative_rate": float(false_negative_rate),
+        "matthews_corrcoef": float(mcc),
+        "roc_auc": float(roc_auc_score(true_labels, predicted_probs)),
+        "pearson_correlation": float(corr),
+        "youden_j_statistic": float(recall + specificity - 1.0),
+        "support": int(total),
+    }
+
+
 # ---------------- EVALUATION ---------------- #
 
 evaluation = model.evaluate(val_ds, verbose=0, return_dict=True)
@@ -352,6 +400,8 @@ report = classification_report(
     zero_division=0
 )
 
+additional_metrics = compute_additional_metrics(y_true, y_pred, y_prob)
+
 print("\nClassification Report:")
 print(classification_report(
     y_true,
@@ -361,6 +411,10 @@ print(classification_report(
     zero_division=0
 ))
 
+print("\nAdditional Metrics:")
+for metric, value in additional_metrics.items():
+    print(f"{metric}: {value:.6f}")
+
 with open(OUTPUT_DIR / "classification_report.json", "w") as f:
     json.dump(report, f, indent=2)
 
@@ -368,8 +422,11 @@ with open(OUTPUT_DIR / "evaluation_metrics.json", "w") as f:
     json.dump({
         "class_names": class_names,
         "metrics": {
-            key: float(value)
-            for key, value in evaluation.items()
+            **{
+                key: float(value)
+                for key, value in evaluation.items()
+            },
+            **additional_metrics,
         },
         "confusion_matrix": cm.tolist()
     }, f, indent=2)
